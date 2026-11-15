@@ -28,7 +28,7 @@ def evaluate(model, ds, device, thr=0.5, tile=256):
     """Full-image evaluation, tiled so large scenes fit in memory."""
     model.eval()
     preds, targets = [], []
-    for s in ds.ds:
+    for s in ds.samples:
         before, after = split_pair(s["image"].float())
         mask = s["mask"]
         _, h, w = before.shape

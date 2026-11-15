@@ -26,16 +26,19 @@ class OSCDPatches(Dataset):
                  augment: bool = True, download: bool = True):
         from torchgeo.datasets import OSCD
 
-        self.ds = OSCD(root=root, split=split, bands=OSCD.all_bands, download=download)
+        ds = OSCD(root=root, split=split, bands=OSCD.all_bands, download=download)
+        # torchgeo re-reads 13 tiffs per access; the whole split is small, so cache it once.
+        self.samples = [{"image": s["image"].float(), "mask": s["mask"].float()}
+                        for s in (ds[i] for i in range(len(ds)))]
         self.patch, self.augment, self.n = patch, augment, n_per_epoch
 
     def __len__(self):
         return self.n
 
     def __getitem__(self, i):
-        s = self.ds[random.randrange(len(self.ds))]
-        before, after = split_pair(s["image"].float())
-        mask = s["mask"].float()
+        s = random.choice(self.samples)
+        before, after = split_pair(s["image"])
+        mask = s["mask"]
         if mask.ndim == 2:  # torchgeo may return (H, W) or (1, H, W)
             mask = mask[None]
         _, h, w = before.shape
