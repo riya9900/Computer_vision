@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "temporal-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "temporalio/claude-temporal-plugin"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "temporal@temporal-marketplace": true
+  }
+}
