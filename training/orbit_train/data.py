@@ -36,10 +36,12 @@ class OSCDPatches(Dataset):
         s = self.ds[random.randrange(len(self.ds))]
         before, after = split_pair(s["image"].float())
         mask = s["mask"].float()
+        if mask.ndim == 2:  # torchgeo may return (H, W) or (1, H, W)
+            mask = mask[None]
         _, h, w = before.shape
         y, x = random.randint(0, h - self.patch), random.randint(0, w - self.patch)
         sl = (slice(None), slice(y, y + self.patch), slice(x, x + self.patch))
-        before, after, mask = before[sl], after[sl], mask[None, y:y + self.patch, x:x + self.patch]
+        before, after, mask = before[sl], after[sl], mask[sl]
         if self.augment:
             if random.random() < 0.5:
                 before, after, mask = (t.flip(-1) for t in (before, after, mask))
