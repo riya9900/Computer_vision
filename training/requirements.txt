@@ -9,3 +9,7 @@ timm
 huggingface_hub
 # Clay encoder code (no-deps: its other deps like wandb/geopandas are not needed for inference):
 #   pip install --no-deps git+https://github.com/Clay-foundation/model.git
+pystac-client
+odc-stac
+pyproj
+pillow

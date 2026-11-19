@@ -1,0 +1,6 @@
+[
+  {"id": "nusantara", "name": "Nusantara capital zone", "region": "East Kalimantan, Indonesia",
+   "lat": -0.95, "lng": 116.7, "halfDeg": 0.08},
+  {"id": "atacama", "name": "Salar de Atacama lithium ponds", "region": "Antofagasta, Chile",
+   "lat": -23.7, "lng": -68.27, "halfDeg": 0.07}
+]
