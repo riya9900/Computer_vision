@@ -55,8 +55,8 @@ def composite(items, bands, geobox=None, bbox=None):
     missing = [a for a in assets if a not in items[0].assets]
     if missing:
         raise RuntimeError(f"assets {missing} not in item; available: {sorted(items[0].assets)}")
-    kw = {"geobox": geobox} if geobox is not None else {"bbox": bbox, "resolution": 10,
-                                                        "crs": f"EPSG:{items[0].properties['proj:epsg']}"}
+    # No hand-picked CRS: odc-stac uses the scenes' native UTM zone. Later years reuse the first grid.
+    kw = {"geobox": geobox} if geobox is not None else {"bbox": bbox, "resolution": 10}
     ds = load(items, bands=assets, groupby="solar_day", chunks={}, **kw)
     arr = np.stack([ds[a].astype("float32").where(lambda x: x > 0).median("time").values for a in assets])
     arr = np.nan_to_num(arr, nan=0.0)
@@ -152,7 +152,7 @@ def lookalikes(enc, site, after_site_feat, mask_tokens, bbox_wide, year, device,
     f = feats.float()
     sim = (q[:, None, None] * (f / (f.norm(dim=0, keepdim=True) + 1e-6))).sum(0).numpy()
 
-    to_ll = Transformer.from_crs(gbox.crs, "EPSG:4326", always_xy=True)
+    to_ll = Transformer.from_crs(str(gbox.crs), "EPSG:4326", always_xy=True)
     out, sim_work = [], sim.copy()
     for _ in range(k):
         r, c = np.unravel_index(np.argmax(sim_work), sim_work.shape)
