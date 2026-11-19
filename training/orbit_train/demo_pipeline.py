@@ -1,6 +1,6 @@
 """Run the trained models on real Sentinel-2 for the demo sites and export results.
 
-For every site and year it fetches Sentinel-2 L1C (free Earth Search STAC), builds a yearly
+For every site and year it fetches Sentinel-2 L2A (free Earth Search STAC), builds a yearly
 median composite, then:
   * our Siamese U-Net (trained from scratch on OSCD)  -> change mask per year   [primary model]
   * frozen Clay + our conv head                        -> change mask per year   [second model]
@@ -28,11 +28,14 @@ from .train_change_clay import ConvChangeHead
 from .train_land_cover import make_head
 
 STAC_URL = "https://earth-search.aws.element84.com/v1"
-COLLECTION = "sentinel-2-l1c"  # same product family as OSCD / EuroSAT (L1C), so no domain gap
+# Collection 1 L2A: public HTTPS COGs (free, no AWS credentials). The L1C collection sits in a
+# requester-pays bucket, so we avoid it. L2A has no cirrus band (B10): that channel is left at 0,
+# which is harmless because the Siamese U-Net standardises every band per image.
+COLLECTION = "sentinel-2-c1-l2a"
 OSCD13 = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12"]
 ASSET = {"B01": "coastal", "B02": "blue", "B03": "green", "B04": "red", "B05": "rededge1",
          "B06": "rededge2", "B07": "rededge3", "B08": "nir", "B8A": "nir08", "B09": "nir09",
-         "B10": "cirrus", "B11": "swir16", "B12": "swir22"}
+         "B10": None, "B11": "swir16", "B12": "swir22"}
 YEARS = [2018, 2019, 2020, 2021, 2022, 2023]
 HA_PER_PIXEL = 0.01  # 10 m x 10 m
 
@@ -43,25 +46,39 @@ def search_items(bbox, year):
 
     cat = Client.open(STAC_URL)
     res = cat.search(collections=[COLLECTION], bbox=bbox, datetime=f"{year}-01-01/{year}-12-31",
-                     query={"eo:cloud_cover": {"lt": 30}}, max_items=40)
+                     query={"eo:cloud_cover": {"lt": 40}}, max_items=40)
     return res.item_collection()
 
 
 def composite(items, bands, geobox=None, bbox=None):
     """Yearly median composite -> (len(bands), H, W) float32 on a shared grid."""
+    import os
+
     from odc.stac import load
 
-    assets = [ASSET[b] for b in bands]
+    os.environ.setdefault("AWS_NO_SIGN_REQUEST", "YES")  # public data, never sign requests
+    try:
+        from odc.stac import configure_rio
+
+        configure_rio(cloud_defaults=True, aws={"aws_unsigned": True})
+    except Exception:  # noqa: BLE001  (older odc-stac: the env var above is enough)
+        pass
+
+    present = [(i, ASSET[b]) for i, b in enumerate(bands) if ASSET[b]]
+    assets = [a for _, a in present]
     missing = [a for a in assets if a not in items[0].assets]
     if missing:
         raise RuntimeError(f"assets {missing} not in item; available: {sorted(items[0].assets)}")
     # No hand-picked CRS: odc-stac uses the scenes' native UTM zone. Later years reuse the first grid.
     kw = {"geobox": geobox} if geobox is not None else {"bbox": bbox, "resolution": 10}
     ds = load(items, bands=assets, groupby="solar_day", chunks={}, **kw)
-    arr = np.stack([ds[a].astype("float32").where(lambda x: x > 0).median("time").values for a in assets])
-    arr = np.nan_to_num(arr, nan=0.0)
-    if arr.max() <= 3.0:  # some catalogues return reflectance 0..1; models expect 0..10000 scale
-        arr = arr * 10000.0
+    got = np.stack([ds[a].astype("float32").where(lambda x: x > 0).median("time").values for a in assets])
+    got = np.nan_to_num(got, nan=0.0)
+    if got.max() <= 3.0:  # reflectance 0..1 -> DN scale with the +1000 baseline offset (as stored)
+        got = got * 10000.0 + 1000.0
+    arr = np.zeros((len(bands), *got.shape[1:]), dtype=np.float32)  # unavailable bands (B10) stay 0
+    for k, (i, _) in enumerate(present):
+        arr[i] = got[k]
     return arr, ds.odc.geobox
 
 
@@ -233,7 +250,7 @@ def run_site(site, out_dir: Path, enc, siam, convs, device, base_year=YEARS[0]):
     meta = {"id": sid, "name": site["name"], "region": site["region"], "lat": site["lat"], "lng": site["lng"],
             "halfDeg": h, "bbox": bbox, "years": YEARS, "baseYear": base_year, "primaryModel": "siamese_unet",
             "fromClass": frm, "toClass": to, "models": models, "lookalikes": look,
-            "source": f"Sentinel-2 L1C yearly median composites ({STAC_URL})"}
+            "source": f"Sentinel-2 L2A (Collection 1) yearly median composites ({STAC_URL})"}
     (d / "meta.json").write_text(json.dumps(meta, indent=2))
     print("wrote", d / "meta.json")
 
