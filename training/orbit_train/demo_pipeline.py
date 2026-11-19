@@ -38,6 +38,7 @@ ASSET = {"B01": "coastal", "B02": "blue", "B03": "green", "B04": "red", "B05": "
          "B10": None, "B11": "swir16", "B12": "swir22"}
 YEARS = [2018, 2019, 2020, 2021, 2022, 2023]
 HA_PER_PIXEL = 0.01  # 10 m x 10 m
+MAX_ITEMS = 40  # scenes per yearly composite; fewer = faster, noisier (set via --max-items)
 
 
 # ----------------------------------------------------------------------------- imagery
@@ -46,7 +47,7 @@ def search_items(bbox, year):
 
     cat = Client.open(STAC_URL)
     res = cat.search(collections=[COLLECTION], bbox=bbox, datetime=f"{year}-01-01/{year}-12-31",
-                     query={"eo:cloud_cover": {"lt": 40}}, max_items=40)
+                     query={"eo:cloud_cover": {"lt": 40}}, max_items=MAX_ITEMS)
     return res.item_collection()
 
 
@@ -319,13 +320,19 @@ def export_metrics(out_dir: Path):
 
 
 def main():
+    global MAX_ITEMS
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="Drive folder with trained weights")
     ap.add_argument("--sites", required=True)
     ap.add_argument("--oscd", default="/content/oscd")
+    ap.add_argument("--years", type=int, nargs="+", default=YEARS, help="first year is the 'before' year")
+    ap.add_argument("--max-items", type=int, default=MAX_ITEMS)
+    ap.add_argument("--skip-extras", action="store_true", help="skip metrics + OSCD pictures (already exported)")
     args = ap.parse_args()
     out = Path(args.out)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    MAX_ITEMS = args.max_items
+    YEARS[:] = sorted(args.years)
 
     siam = load_siamese(out, device)
     convs = load_conv_heads(out, device)
@@ -334,8 +341,9 @@ def main():
     print(f"loaded {len(siam)} Siamese seeds, {len(convs)} Clay conv seeds")
     enc = load_encoder(str(out / "clay_encoder_v1.5.pt"), device)
 
-    export_metrics(out)
-    export_oscd_examples(out, args.oscd, siam, device)
+    if not args.skip_extras:
+        export_metrics(out)
+        export_oscd_examples(out, args.oscd, siam, device)
     for site in json.loads(Path(args.sites).read_text()):
         run_site(site, out, enc, siam, convs, device)
 
