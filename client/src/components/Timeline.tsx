@@ -1,15 +1,19 @@
 "use client";
 
-import type { Site } from "@/lib/sites";
+import type { TimelinePoint } from "@/lib/api";
 
-type Props = { site: Site; year: number; onYear: (y: number) => void };
+type Props = {
+  timeline: TimelinePoint[];
+  year: number;
+  onYear: (y: number) => void;
+};
 
-export default function Timeline({ site, year, onYear }: Props) {
-  const max = Math.max(...site.timeline.map((t) => t.changedHa), 1);
+export default function Timeline({ timeline, year, onYear }: Props) {
+  const max = Math.max(...timeline.map((t) => t.changedHa), 1);
   return (
     <div>
       <div className="flex h-24 items-end gap-1.5">
-        {site.timeline.map((t) => {
+        {timeline.map((t) => {
           const active = t.year === year;
           return (
             <button
@@ -20,20 +24,23 @@ export default function Timeline({ site, year, onYear }: Props) {
               aria-pressed={active}
               className="group flex h-full flex-1 flex-col justify-end"
             >
+              <span className="mb-1 text-center font-mono text-[10px] text-white/60">
+                {t.changedHa.toLocaleString()}
+              </span>
               <div
-                className={`w-full rounded-t transition-colors ${
+                className={`w-full rounded-t transition-all duration-500 ${
                   active
                     ? "bg-orange-400"
                     : "bg-orange-400/30 group-hover:bg-orange-400/60"
                 }`}
-                style={{ height: `${Math.max((t.changedHa / max) * 100, 3)}%` }}
+                style={{ height: `${Math.max((t.changedHa / max) * 70, 3)}%` }}
               />
             </button>
           );
         })}
       </div>
       <div className="mt-1 flex gap-1.5 font-mono text-[11px] text-white/60">
-        {site.timeline.map((t) => (
+        {timeline.map((t) => (
           <span
             key={t.year}
             className={`flex-1 text-center ${t.year === year ? "text-orange-300" : ""}`}

@@ -1,26 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { imageUrl, type Site } from "@/lib/sites";
+import { imageUrl } from "@/lib/api";
 
-type Props = { site: Site; before: number; after: number };
+type Props = {
+  bbox: number[];
+  before: number;
+  after: number;
+  /** model-detected change mask (transparent PNG over the same footprint) */
+  overlay?: string;
+  name: string;
+};
 
-export default function BeforeAfter({ site, before, after }: Props) {
+export default function BeforeAfter({
+  bbox,
+  before,
+  after,
+  overlay,
+  name,
+}: Props) {
   const [pos, setPos] = useState(50);
 
   return (
     <div className="relative aspect-square w-full select-none overflow-hidden rounded-lg border border-white/10 bg-black">
       {/* biome-ignore lint/performance/noImgElement: remote WMS imagery, not optimisable by next/image */}
       <img
-        src={imageUrl(site, after)}
-        alt={`${site.name} in ${after}`}
+        src={imageUrl(bbox, after)}
+        alt={`${name} in ${after}`}
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
+      {overlay && (
+        // biome-ignore lint/performance/noImgElement: dynamic mask from the API
+        <img
+          src={overlay}
+          alt={`Detected change at ${name}`}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          style={{ objectFit: "fill" }}
+          draggable={false}
+        />
+      )}
       {/* biome-ignore lint/performance/noImgElement: remote WMS imagery, not optimisable by next/image */}
       <img
-        src={imageUrl(site, before)}
-        alt={`${site.name} in ${before}`}
+        src={imageUrl(bbox, before)}
+        alt={`${name} in ${before}`}
         className="absolute inset-0 h-full w-full object-cover"
         style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
         draggable={false}
