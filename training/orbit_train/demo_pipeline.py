@@ -38,6 +38,8 @@ ASSET = {"B01": "coastal", "B02": "blue", "B03": "green", "B04": "red", "B05": "
          "B10": None, "B11": "swir16", "B12": "swir22"}
 YEARS = [2018, 2019, 2020, 2021, 2022, 2023]
 HA_PER_PIXEL = 0.01  # 10 m x 10 m
+THR = 0.75  # decision threshold on real-scene composites (higher = fewer false alarms)
+MIN_BLOB = 30  # pixels (0.3 ha): smaller blobs are treated as noise
 MAX_ITEMS = 40  # scenes per yearly composite; fewer = faster, noisier (set via --max-items)
 
 
@@ -103,20 +105,43 @@ def load_conv_heads(out_dir: Path, device):
 
 
 @torch.no_grad()
-def predict_siamese(models, before: torch.Tensor, after: torch.Tensor, device, tile=256) -> np.ndarray:
-    """Tiled inference, same per-tile normalisation as evaluation. Returns prob map (H, W)."""
+def predict_siamese(models, before: torch.Tensor, after: torch.Tensor, device, tile=256, stride=128) -> np.ndarray:
+    """Overlapping tiles blended with a Hann window (no tile seams). Returns prob map (H, W)."""
     _, h, w = before.shape
-    prob = np.zeros((h, w), dtype=np.float32)
-    for y in range(0, h, tile):
-        for x in range(0, w, tile):
+    acc = np.zeros((h, w), dtype=np.float32)
+    wsum = np.zeros((h, w), dtype=np.float32)
+    win1 = np.hanning(tile + 2)[1:-1].astype(np.float32)
+    win = np.outer(win1, win1) + 1e-3
+
+    def starts(n):
+        last = max(n - tile, 0)
+        xs = list(range(0, last + 1, stride))
+        return xs if xs[-1] == last else xs + [last]
+
+    for y in starts(h):
+        for x in starts(w):
             b = normalise(before[:, y:y + tile, x:x + tile])[None].to(device)
             a = normalise(after[:, y:y + tile, x:x + tile])[None].to(device)
             th, tw = b.shape[-2:]
             ph, pw = (-th) % 8, (-tw) % 8
             b, a = (F.pad(t, (0, pw, 0, ph), mode="reflect") for t in (b, a))
-            p = torch.stack([torch.sigmoid(m(b, a))[0, 0, :th, :tw] for m in models]).mean(0)
-            prob[y:y + th, x:x + tw] = p.cpu().numpy()
-    return prob
+            p = torch.stack([torch.sigmoid(m(b, a))[0, 0, :th, :tw] for m in models]).mean(0).cpu().numpy()
+            acc[y:y + th, x:x + tw] += p * win[:th, :tw]
+            wsum[y:y + th, x:x + tw] += win[:th, :tw]
+    return acc / np.maximum(wsum, 1e-6)
+
+
+def clean_mask(prob: np.ndarray, thr: float, min_blob: int) -> np.ndarray:
+    """Threshold, then drop specks smaller than min_blob pixels (noise, not land change)."""
+    from scipy import ndimage
+
+    mask = prob > thr
+    lab, n = ndimage.label(mask)
+    if n == 0:
+        return mask
+    sizes = ndimage.sum(mask, lab, index=np.arange(1, n + 1))
+    keep = np.concatenate([[False], sizes >= min_blob])
+    return keep[lab]
 
 
 @torch.no_grad()
@@ -219,9 +244,11 @@ def run_site(site, out_dir: Path, enc, siam, convs, device, base_year=YEARS[0]):
                 prob = predict_siamese(siam, base, after, device)
             else:
                 prob = predict_clay_conv(convs, base_feat, feats[y], (H, W), device)
-            mask = prob > 0.5
+            mask = clean_mask(prob, THR if name == "siamese_unet" else 0.5, MIN_BLOB)
             fn = f"mask_{name}_{y}.png"
             save_mask(mask, d / fn)
+            # keep the raw probabilities so the threshold can be re-tuned later without a GPU
+            Image.fromarray((prob * 255).astype(np.uint8)).save(d / f"prob_{name}_{y}.png", optimize=True)
             models[name]["masks"][str(y)] = fn
             models[name]["timeline"].append({"year": y, "changedHa": round(float(mask.sum() * HA_PER_PIXEL), 1)})
             if y == YEARS[-1]:
@@ -320,18 +347,20 @@ def export_metrics(out_dir: Path):
 
 
 def main():
-    global MAX_ITEMS
+    global MAX_ITEMS, THR, MIN_BLOB
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="Drive folder with trained weights")
     ap.add_argument("--sites", required=True)
     ap.add_argument("--oscd", default="/content/oscd")
     ap.add_argument("--years", type=int, nargs="+", default=YEARS, help="first year is the 'before' year")
     ap.add_argument("--max-items", type=int, default=MAX_ITEMS)
+    ap.add_argument("--thr", type=float, default=THR)
+    ap.add_argument("--min-blob", type=int, default=MIN_BLOB)
     ap.add_argument("--skip-extras", action="store_true", help="skip metrics + OSCD pictures (already exported)")
     args = ap.parse_args()
     out = Path(args.out)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    MAX_ITEMS = args.max_items
+    MAX_ITEMS, THR, MIN_BLOB = args.max_items, args.thr, args.min_blob
     YEARS[:] = sorted(args.years)
 
     siam = load_siamese(out, device)

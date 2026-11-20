@@ -2,5 +2,9 @@
   {"id": "nusantara", "name": "Nusantara capital zone", "region": "East Kalimantan, Indonesia",
    "lat": -0.95, "lng": 116.7, "halfDeg": 0.08},
   {"id": "atacama", "name": "Salar de Atacama lithium ponds", "region": "Antofagasta, Chile",
-   "lat": -23.7, "lng": -68.27, "halfDeg": 0.07}
+   "lat": -23.7, "lng": -68.27, "halfDeg": 0.07},
+  {"id": "gerd", "name": "Grand Ethiopian Renaissance Dam reservoir", "region": "Benishangul-Gumuz, Ethiopia",
+   "lat": 11.22, "lng": 35.1, "halfDeg": 0.12},
+  {"id": "oyutolgoi", "name": "Oyu Tolgoi copper mine", "region": "South Gobi, Mongolia",
+   "lat": 43.03, "lng": 106.85, "halfDeg": 0.07}
 ]
