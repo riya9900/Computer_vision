@@ -13,6 +13,7 @@ type Props = {
 };
 
 export default function EarthGlobe({ sites, selected, onSelect }: Props) {
+  const [webgl, setWebgl] = useState<boolean | null>(null);
   const globe = useRef<GlobeMethods | undefined>(undefined);
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -50,6 +51,16 @@ export default function EarthGlobe({ sites, selected, onSelect }: Props) {
     }
   }, [selected]);
 
+  // Some browsers/GPUs cannot create a WebGL context; say so instead of crashing the page.
+  useEffect(() => {
+    try {
+      const c = document.createElement("canvas");
+      setWebgl(!!(c.getContext("webgl2") || c.getContext("webgl")));
+    } catch {
+      setWebgl(false);
+    }
+  }, []);
+
   const lookalikes = useMemo(() => selected?.lookalikes ?? [], [selected]);
 
   const polygons = useMemo(() => {
@@ -71,6 +82,24 @@ export default function EarthGlobe({ sites, selected, onSelect }: Props) {
       },
     ];
   }, [selected]);
+
+  if (webgl === false) {
+    return (
+      <div className="absolute inset-0 grid place-items-center p-6">
+        <div className="max-w-sm rounded-xl border border-white/10 bg-black/60 p-4 text-sm text-white/80">
+          <p className="font-medium text-white">The 3D globe needs WebGL</p>
+          <p className="mt-1 text-white/60">
+            Your browser could not start it. Turn on hardware acceleration in
+            the browser settings (System), restart the browser, or try another
+            one. You can still pick a site from the list and use everything
+            else.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (webgl === null) return <div ref={box} className="absolute inset-0" />;
 
   return (
     <div ref={box} className="absolute inset-0">
