@@ -32,8 +32,11 @@ def get_site(site_id: str, thr: float | None = Query(None, ge=0.05, le=0.99)) ->
     meta = store.load_site(site_id)
     if meta is None:
         raise HTTPException(404, "unknown site")
+    primary = meta["primaryModel"]
+    # The live strictness slider needs the saved probability maps (newer pipeline runs only).
+    meta["canRetune"] = store.has_probabilities(site_id, primary, meta["years"][-1])
     if thr is not None:  # re-threshold the primary model from its saved probabilities
-        model = meta["primaryModel"]
+        model = primary
         timeline = store.retuned_timeline(meta, model, thr)
         if timeline is not None:
             meta["models"][model]["timeline"] = timeline

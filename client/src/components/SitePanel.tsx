@@ -69,7 +69,7 @@ export default function SitePanel({
   function writeReport() {
     const d = detail as SiteDetail;
     const fromTo =
-      d.fromClass && d.toClass
+      d.fromClass && d.toClass && d.fromClass !== d.toClass
         ? `, mostly ${d.fromClass.toLowerCase()} turning into ${d.toClass.toLowerCase()}`
         : "";
     setReport(
@@ -147,7 +147,7 @@ export default function SitePanel({
         </span>
       </div>
 
-      {isPrimary && (
+      {isPrimary && detail.canRetune && (
         <div>
           <div className="mb-1 flex justify-between text-xs text-white/50">
             <span>Strictness (re-computed live from the model)</span>
@@ -183,13 +183,15 @@ export default function SitePanel({
           value={`${(result.confidence * 100).toFixed(0)}%`}
         />
       </dl>
-      {detail.fromClass && detail.toClass && (
-        <p className="rounded-md bg-white/5 px-3 py-2 text-sm text-white/80">
-          <span className="text-white/50">From → to: </span>
-          {detail.fromClass} →{" "}
-          <span className="text-orange-300">{detail.toClass}</span>
-        </p>
-      )}
+      {detail.fromClass &&
+        detail.toClass &&
+        detail.fromClass !== detail.toClass && (
+          <p className="rounded-md bg-white/5 px-3 py-2 text-sm text-white/80">
+            <span className="text-white/50">From → to: </span>
+            {detail.fromClass} →{" "}
+            <span className="text-orange-300">{detail.toClass}</span>
+          </p>
+        )}
 
       <button
         type="button"

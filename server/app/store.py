@@ -64,6 +64,10 @@ def _prob(site_id: str, model: str, year: int) -> np.ndarray | None:
     return np.asarray(Image.open(path), dtype=np.float32) / 255.0
 
 
+def has_probabilities(site_id: str, model: str, year: int) -> bool:
+    return (settings.data_dir / site_id / f"prob_{model}_{year}.png").exists()
+
+
 @lru_cache(maxsize=128)
 def rethreshold(site_id: str, model: str, year: int, thr: float) -> np.ndarray | None:
     """Mask from the saved probability map at a chosen threshold (small blobs removed)."""

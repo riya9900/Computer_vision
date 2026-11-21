@@ -50,6 +50,7 @@ def test_unknown_site_and_path_tricks(client):
 def test_rethreshold_removes_noise_and_counts_area(client):
     # 20x20 blob = 400 px = 4 ha; the lone pixel is dropped
     site = client.get("/api/sites/s1?thr=0.5").json()
+    assert site["canRetune"] is True
     assert site["models"]["siamese_unet"]["timeline"][-1]["changedHa"] == 4.0
     r = client.get("/api/sites/s1/mask/siamese_unet/2023.png?thr=0.5")
     assert r.status_code == 200 and r.headers["content-type"] == "image/png"
@@ -77,3 +78,8 @@ def test_alerts_need_the_worker_token(client, monkeypatch):
     assert bad.status_code == 404
     monkeypatch.setattr(settings, "worker_token", None)
     assert client.post("/api/alerts", json=ALERT, headers={"X-Worker-Token": "secret"}).status_code == 503
+
+
+def test_cannot_retune_without_saved_probabilities(client, tmp_path):
+    (tmp_path / "demo" / "s1" / "prob_siamese_unet_2023.png").unlink()
+    assert client.get("/api/sites/s1").json()["canRetune"] is False

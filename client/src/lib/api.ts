@@ -45,6 +45,7 @@ export type SiteDetail = {
   models: Record<string, ModelResult>;
   lookalikes: Lookalike[];
   source: string;
+  canRetune: boolean;
 };
 
 type Stat = { mean: number; std: number };
