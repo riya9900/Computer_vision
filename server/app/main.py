@@ -1,6 +1,9 @@
-from fastapi import FastAPI, HTTPException, Query, Response
+import hmac
+
+from fastapi import FastAPI, Header, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from . import store
 from .config import settings
@@ -9,7 +12,7 @@ app = FastAPI(title="OrbitWatch API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -73,3 +76,30 @@ def get_oscd_image(filename: str) -> FileResponse:
         raise HTTPException(404, "unknown image")
     return FileResponse(settings.data_dir / "oscd" / filename, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
+
+
+class AlertIn(BaseModel):
+    siteId: str = Field(max_length=64)
+    kind: str = Field(default="new_scenes", max_length=32)
+    newScenes: int = Field(ge=0, le=10_000)
+    latestDate: str | None = Field(default=None, max_length=40)
+    message: str = Field(max_length=500)
+
+
+@app.get("/api/alerts")
+def get_alerts(site_id: str | None = None) -> list[dict]:
+    alerts = store.list_alerts()
+    return [a for a in alerts if a.get("siteId") == site_id] if site_id else alerts
+
+
+@app.post("/api/alerts", status_code=201)
+def post_alert(alert: AlertIn, x_worker_token: str | None = Header(default=None)) -> dict:
+    """Called by the Temporal worker only. Disabled unless ORBITWATCH_WORKER_TOKEN is set."""
+    expected = settings.worker_token
+    if not expected:
+        raise HTTPException(503, "alerts are disabled: set ORBITWATCH_WORKER_TOKEN")
+    if not x_worker_token or not hmac.compare_digest(x_worker_token, expected):
+        raise HTTPException(401, "bad worker token")
+    if store.load_site(alert.siteId) is None:
+        raise HTTPException(404, "unknown site")
+    return store.add_alert(alert.model_dump())

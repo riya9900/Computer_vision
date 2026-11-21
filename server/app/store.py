@@ -1,6 +1,8 @@
 """Read-only access to the results exported by the Colab demo pipeline."""
 import io
 import json
+import threading
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -96,3 +98,25 @@ def retuned_timeline(meta: dict, model: str, thr: float) -> list[dict] | None:
             return None
         out.append({"year": t["year"], "changedHa": round(float(mask.sum() * HA_PER_PIXEL), 1)})
     return out
+
+
+# ----------------------------------------------------------------------------- alerts
+_alerts_lock = threading.Lock()
+MAX_ALERTS = 200
+
+
+def list_alerts() -> list[dict]:
+    path = settings.alerts_file
+    return _read_json(path) if path.exists() else []
+
+
+def add_alert(alert: dict) -> dict:
+    """Append a worker alert (newest first, capped). Returns the stored record."""
+    record = {**alert, "createdAt": datetime.now(UTC).isoformat(timespec="seconds")}
+    with _alerts_lock:
+        alerts = [record, *list_alerts()][:MAX_ALERTS]
+        settings.alerts_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = settings.alerts_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(alerts, indent=2), encoding="utf-8")
+        tmp.replace(settings.alerts_file)  # atomic swap: readers never see half a file
+    return record

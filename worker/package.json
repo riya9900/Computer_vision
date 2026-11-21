@@ -1,0 +1,12 @@
+{
+  "name": "orbitwatch-worker",
+  "private": true,
+  "description": "Temporal worker: weekly Sentinel-2 scene watch. Start it with `pnpm run dev`.",
+  "scripts": {
+    "dev": "uv run python -m orbitwatch_worker worker",
+    "schedule": "uv run python -m orbitwatch_worker schedule",
+    "run-now": "uv run python -m orbitwatch_worker run-now",
+    "test": "uv run pytest -q"
+  },
+  "packageManager": "pnpm@10.11.0"
+}

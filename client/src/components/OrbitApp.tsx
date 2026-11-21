@@ -3,7 +3,13 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { API, getSites, type SiteSummary } from "@/lib/api";
+import {
+  type Alert,
+  API,
+  getAlerts,
+  getSites,
+  type SiteSummary,
+} from "@/lib/api";
 import SitePanel from "./SitePanel";
 
 // three.js touches window/WebGL, so the globe is client-only.
@@ -21,11 +27,21 @@ export default function OrbitApp() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SiteSummary | null>(null);
 
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
   useEffect(() => {
     getSites()
       .then(setSites)
       .catch((e: Error) => setError(e.message));
+    // Alerts come from the weekly Temporal worker; none yet is a normal state.
+    getAlerts()
+      .then(setAlerts)
+      .catch(() => setAlerts([]));
   }, []);
+
+  const latestAlert = new Map<string, Alert>();
+  for (const a of alerts)
+    if (!latestAlert.has(a.siteId)) latestAlert.set(a.siteId, a);
 
   const totalHa = (sites ?? []).reduce((a, s) => a + s.changedHa, 0);
 
@@ -94,6 +110,17 @@ export default function OrbitApp() {
                       {s.changedHa.toLocaleString()} ha changed ·{" "}
                       {s.region.split(",").pop()?.trim()}
                     </span>
+                    {latestAlert.get(s.id) && (
+                      <span
+                        className="mt-1 block text-[11px] text-teal-300"
+                        title={latestAlert.get(s.id)?.message}
+                      >
+                        ● {latestAlert.get(s.id)?.newScenes} new scenes
+                        {latestAlert.get(s.id)?.latestDate
+                          ? ` · latest ${latestAlert.get(s.id)?.latestDate}`
+                          : ""}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

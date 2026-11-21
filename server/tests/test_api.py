@@ -29,6 +29,8 @@ def client(tmp_path, monkeypatch):
     (site / "meta.json").write_text(json.dumps(meta))
     (tmp_path / "demo" / "metrics.json").write_text(json.dumps({"change": {}, "landCover": None}))
     monkeypatch.setattr(settings, "data_dir", tmp_path / "demo")
+    monkeypatch.setattr(settings, "alerts_file", tmp_path / "alerts.json")
+    monkeypatch.setattr(settings, "worker_token", "secret")
     store._prob.cache_clear()
     store.rethreshold.cache_clear()
     return TestClient(app)
@@ -58,3 +60,20 @@ def test_rethreshold_removes_noise_and_counts_area(client):
 def test_metrics(client):
     assert client.get("/api/metrics").status_code == 200
     assert client.get("/api/oscd").json() == []
+
+
+ALERT = {"siteId": "s1", "newScenes": 3, "latestDate": "2026-11-10", "message": "3 new scenes"}
+
+
+def test_alerts_need_the_worker_token(client, monkeypatch):
+    assert client.get("/api/alerts").json() == []
+    assert client.post("/api/alerts", json=ALERT).status_code == 401
+    assert client.post("/api/alerts", json=ALERT, headers={"X-Worker-Token": "wrong"}).status_code == 401
+    ok = client.post("/api/alerts", json=ALERT, headers={"X-Worker-Token": "secret"})
+    assert ok.status_code == 201 and "createdAt" in ok.json()
+    assert client.get("/api/alerts?site_id=s1").json()[0]["newScenes"] == 3
+    assert client.get("/api/alerts?site_id=other").json() == []
+    bad = client.post("/api/alerts", json={**ALERT, "siteId": "nope"}, headers={"X-Worker-Token": "secret"})
+    assert bad.status_code == 404
+    monkeypatch.setattr(settings, "worker_token", None)
+    assert client.post("/api/alerts", json=ALERT, headers={"X-Worker-Token": "secret"}).status_code == 503

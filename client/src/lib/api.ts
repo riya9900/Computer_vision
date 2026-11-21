@@ -80,6 +80,15 @@ export const getSite = (id: string, thr?: number) =>
   get<SiteDetail>(`/api/sites/${id}${thr === undefined ? "" : `?thr=${thr}`}`);
 export const getMetrics = () => get<Metrics>("/api/metrics");
 export const getOscd = () => get<OscdExample[]>("/api/oscd");
+export type Alert = {
+  siteId: string;
+  kind: string;
+  newScenes: number;
+  latestDate: string | null;
+  message: string;
+  createdAt: string;
+};
+export const getAlerts = () => get<Alert[]>("/api/alerts");
 
 export const maskUrl = (
   id: string,
