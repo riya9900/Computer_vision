@@ -84,7 +84,7 @@ export default function Results() {
                   <th className="px-3 py-2">Precision</th>
                   <th className="px-3 py-2">Recall</th>
                   <th className="px-3 py-2">Trainable params</th>
-                  <th className="px-3 py-2">Train time</th>
+                  <th className="px-3 py-2">Train time per run (GPU)</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,7 +111,7 @@ export default function Results() {
                       <td className="px-3 py-2 font-mono">{pm(m.precision)}</td>
                       <td className="px-3 py-2 font-mono">{pm(m.recall)}</td>
                       <td className="px-3 py-2 font-mono">
-                        {m.params.toLocaleString()}
+                        {m.params.toLocaleString("en-US")}
                       </td>
                       <td className="px-3 py-2 font-mono">
                         {m.train_seconds.toFixed(0)} s
@@ -122,6 +122,15 @@ export default function Results() {
               </tbody>
             </table>
           </div>
+
+          <p className="mt-3 max-w-3xl text-xs leading-relaxed text-white/55">
+            <b className="text-white/70">Training time.</b> The column above is
+            the measured time of each final training run on a Colab GPU (the
+            Siamese U-Net: about 2 minutes per seed, 3 seeds). Total Colab time
+            spent by the team on training, including a first slower attempt, the
+            three seeds of each model and caching the Clay features, was about{" "}
+            <b className="text-white/70">40 minutes</b> (team-reported).
+          </p>
 
           {metrics.landCover && (
             <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
@@ -134,9 +143,9 @@ export default function Results() {
                   {(metrics.landCover.test_acc.mean * 100).toFixed(1)}% ±{" "}
                   {(metrics.landCover.test_acc.std * 100).toFixed(1)}
                 </span>{" "}
-                with a {metrics.landCover.params.toLocaleString()}-parameter
-                head on frozen Clay features. This is what says "forest →
-                industrial" in the site reports.
+                with a {metrics.landCover.params.toLocaleString("en-US")}
+                -parameter head on frozen Clay features. This is what says
+                "forest → industrial" in the site reports.
               </p>
             </div>
           )}

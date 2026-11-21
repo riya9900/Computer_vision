@@ -26,6 +26,8 @@ Change detection, OSCD test (10 pairs):
 
 Land cover, EuroSAT held-out test: **97.9 % ± 0.1** accuracy (530k-parameter head on frozen Clay features).
 
+Train time is the measured time of each final run on a Colab GPU. Total Colab time the team spent on training (first slower attempt, 3 seeds per model, feature caching) was about 40 minutes (team-reported).
+
 Data: OSCD (24 Sentinel-2 pairs, 13 bands; 14 train / 10 test), EuroSAT (27,000 labelled patches). Training ran on Google Colab (L4 GPU). The `/results` page in the app shows the table, plus test scenes with our prediction next to the human labels.
 
 ## Run it (3 terminals)
@@ -74,3 +76,10 @@ Tests: `cd server && uv run pytest` · `cd worker && uv run pytest` · `cd clien
 ## Deploying (AWS, optional)
 
 The API is a plain FastAPI app and the web app a standard Next.js build. A single small EC2 instance (or two App Runner services) is enough: run the API with `uvicorn`, build the client with `NEXT_PUBLIC_API_URL` set to the API's public URL, copy `server/data/demo` onto the instance, and set `ORBITWATCH_CORS_ORIGINS` to the web app's URL. Set a budget alarm. This path has not been exercised here.
+
+
+To start the project, open three terminals:
+
+cd R:/cv/Computer_vision/server && uv run uvicorn app.main:app --port 8000
+cd R:/cv/Computer_vision/client && pnpm dev
+cd R:/cv/Computer_vision/worker && pnpm run dev
